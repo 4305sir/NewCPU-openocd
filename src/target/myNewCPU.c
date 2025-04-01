@@ -96,7 +96,52 @@ int jtag_read_idcode(struct jtag_tap *tap, uint32_t *idcode, int verify) {
 
     return ERROR_OK;
 }
+static int write_dtmcs(struct jtag_tap *tap, uint32_t dtmcs_value) {
+    // 发送DTMCS IR指令(0x10)
+    uint8_t dtmcs_ir = 0x10;
+    struct scan_field ir_field = {
+        .num_bits = tap->ir_length,
+        .out_value = &dtmcs_ir,
+        .in_value = NULL,
+        .check_value = NULL,
+        .check_mask = NULL
+    };
+    jtag_add_ir_scan(tap, &ir_field, TAP_IDLE);
 
+    // 准备写入DTMCS DR值的缓冲区
+    uint8_t dtmcs_data[4];
+    buf_set_u32(dtmcs_data, 0, 32, dtmcs_value);
+
+    // 写入DTMCS DR值
+    struct scan_field dr_field = {
+        .num_bits = 32,
+        .out_value = dtmcs_data,  // 写入操作，提供输出值
+        .in_value = NULL,         // 不需要读取返回值
+        .check_value = NULL,
+        .check_mask = NULL
+    };
+    jtag_add_dr_scan(tap, 1, &dr_field, TAP_IDLE);
+
+    return jtag_execute_queue();
+}
+static int reset_dmi(struct jtag_tap *tap) {
+    // 设置DMIRESET位(bit 16)
+    uint32_t dtmcs_reset = (1 << 16);
+    int retval = write_dtmcs(tap, dtmcs_reset);
+    if (retval != ERROR_OK) {
+        LOG_ERROR("Failed to reset DMI");
+        return retval;
+    }
+    
+    // 清除DMIRESET位
+    retval = write_dtmcs(tap, 0);
+    if (retval != ERROR_OK) {
+        LOG_ERROR("Failed to clear DMIRESET");
+        return retval;
+    }
+    
+    return ERROR_OK;
+}
 static int read_dtmcs(struct jtag_tap *tap, uint32_t *dtmcs) {
     // 发送DTMCS IR指令(0x10)
     uint8_t dtmcs_ir = 0x10;
@@ -157,7 +202,7 @@ static int myNewCPU_poll(struct target *target)
 static int myNewCPU_examine(struct target *target)
 {
     log_time_with_info("in myNewCPU_examine");
-
+    log_time_with_info("    Read DTMCS");
     struct jtag_tap *tap = target->tap;
     if (!tap) {
         LOG_ERROR("TAP not initialized!");
@@ -218,6 +263,10 @@ static int myNewCPU_examine(struct target *target)
         }
     }
     LOG_INFO("Read IDCODE: 0x%08x", idcode);
+
+    log_time_with_info("    reset(not Hard) DTM");
+    reset_dmi(tap);
+
     target->state = TARGET_RUNNING;
     log_time_with_info("out myNewCPU_examine");
     return ERROR_OK;
