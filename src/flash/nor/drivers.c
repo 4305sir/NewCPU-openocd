@@ -8,6 +8,8 @@
 #include "config.h"
 #endif
 #include "imp.h"
+/* 在文件开头添加 */
+extern struct flash_driver myNewCPU_flash;
 
 /**
  * The list of built-in flash drivers.
@@ -88,6 +90,7 @@ static const struct flash_driver * const flash_drivers[] = {
 	&xmc4xxx_flash,
 	&w600_flash,
 	&rsl10_flash,
+	&myNewCPU_flash,
 	NULL,
 };
 

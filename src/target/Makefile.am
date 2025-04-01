@@ -29,7 +29,8 @@ noinst_LTLIBRARIES += %D%/libtarget.la
 	%D%/dsp5680xx.c \
 	%D%/hla_target.c \
 	$(ARMV8_SRC) \
-	$(MIPS64_SRC)
+	$(MIPS64_SRC) \
+	$(mychip_SRC)
 
 if HAVE_CAPSTONE
 %C%_libtarget_la_CPPFLAGS += $(CAPSTONE_CFLAGS)
@@ -132,6 +133,9 @@ MIPS64_SRC = \
 	%D%/mips_mips64.c \
 	%D%/trace.c \
 	%D%/mips_ejtag.c
+
+mychip_SRC = \
+	%D%/myNewCPU.c 
 
 STM8_SRC = \
 	%D%/stm8.c
@@ -236,7 +240,8 @@ ARC_SRC = \
 	%D%/arc_cmd.h \
 	%D%/arc_jtag.h \
 	%D%/arc_mem.h \
-	%D%/rtt.h
+	%D%/rtt.h \
+	%D%/myNewCPU.h
 
 include %D%/openrisc/Makefile.am
 include %D%/riscv/Makefile.am
