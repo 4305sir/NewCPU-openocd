@@ -23,9 +23,6 @@ static int myNewCPU_get_gdb_reg_list(struct target *target, struct reg **reg_lis
 static int myNewCPU_poll(struct target *target);
 // 分析并打印DMCONTROL寄存器的详细信息
 static void analyze_dmcontrol(uint32_t dmcontrol);
-static int myNewCPU_selectHart1(struct target *target);
-static int myNewCPU_hawindowsel(struct target *target);
-static int myNewCPU_hawindow(struct target *target);
 
 /* 实现这些函数... */
 static int myNewCPU_init_target(struct command_context *cmd_ctx, struct target *target)
@@ -251,7 +248,7 @@ static void analyze_dtmcs(uint32_t dtmcs) {
 // DMI访问函数
 static int dmi_op(struct jtag_tap *tap, uint32_t addr, uint32_t *data, uint32_t op)
 {
-    // jtag_add_tlr();
+    // jtag_add_tlr();//do not do this  , it will timeout
     // 发送DMI IR指令(0x11)
     uint8_t dmi_ir = 0x11;
     struct scan_field ir_field = {
@@ -425,20 +422,16 @@ static int myNewCPU_examine(struct target *target)
     log_time_with_info("    reset(not Hard) DTM");
     reset_dmi(tap);
 
-    uint32_t dmcontrol_a = DMCONTROL_DMACTIVE | DMCONTROL_NDMRESET;  // 激活DM并复位系统
-    if (dm_write(tap, DM_DMCONTROL, dmcontrol_a) == ERROR_OK) {
-        LOG_INFO("Successfully wrote DMCONTROL (activate and reset)");
-    }
+    // uint32_t dmcontrol_a = DMCONTROL_DMACTIVE | DMCONTROL_NDMRESET;  // 激活DM并复位系统
+    // if (dm_write(tap, DM_DMCONTROL, dmcontrol_a) == ERROR_OK) {
+    //     LOG_INFO("Successfully wrote DMCONTROL (activate and reset)");
+    // }
     
-    // 清除复位信号，保持DM激活
-    dmcontrol_a = DMCONTROL_DMACTIVE;
-    if (dm_write(tap, DM_DMCONTROL, dmcontrol_a) == ERROR_OK) {
-        LOG_INFO("Successfully cleared reset and kept DM active");
-    }
-    log_time_with_info("    select hart 1");
-    myNewCPU_selectHart1(target);
-    myNewCPU_hawindowsel(target);
-    myNewCPU_hawindow(target);
+    // // 清除复位信号，保持DM激活
+    // dmcontrol_a = DMCONTROL_DMACTIVE;
+    // if (dm_write(tap, DM_DMCONTROL, dmcontrol_a) == ERROR_OK) {
+    //     LOG_INFO("Successfully cleared reset and kept DM active");
+    // }
     log_time_with_info("    Reading dmstatus registers");
     // 读取DMSTATUS寄存器
     uint32_t dmstatus;
@@ -486,102 +479,6 @@ static int myNewCPU_examine(struct target *target)
     target->state = TARGET_RUNNING;
     log_time_with_info("out myNewCPU_examine");
     return ERROR_OK;
-}
-static int myNewCPU_selectHart1(struct target *target)
-{
-    LOG_INFO("in myNewCPU_selectHart1");
-    struct jtag_tap *tap = target->tap;
-    if (!tap) {
-        LOG_ERROR("TAP not initialized!");
-        return ERROR_FAIL;
-    }
-
-    // 读取当前DMCONTROL值
-    uint32_t dmcontrol;
-    int retval = dm_read(tap, DM_DMCONTROL, &dmcontrol);
-    if (retval != ERROR_OK) {
-        LOG_ERROR("Failed to read DMCONTROL");
-        return retval;
-    }
-
-    // 设置hartsel lo 为1
-    dmcontrol |= DMCONTROL_HARTSELLO(1);
-    retval = dm_write(tap, DM_DMCONTROL, dmcontrol);
-    if (retval != ERROR_OK) {
-        LOG_ERROR("Failed to set 设置hartselo");
-        return retval;
-    }
-
-    return ERROR_FAIL;
-}
-static int myNewCPU_hawindowsel(struct target *target)
-{
-    LOG_INFO("in myNewCPU_hawindowsel");
-    struct jtag_tap *tap = target->tap;
-    if (!tap) {
-        LOG_ERROR("TAP not initialized!");
-        return ERROR_FAIL;
-    }
-
-    // 读取当前hartwindowsel值
-    uint32_t hartwindowsel;
-    int retval = dm_read(tap, DM_HAWINDOWSEL, &hartwindowsel);
-    if (retval != ERROR_OK) {
-        LOG_ERROR("Failed to read DM_HAWINDOWSEL");
-        return retval;
-    }
-
-    // 设置hartsel lo 为1
-    hartwindowsel |= HAWINDOWSEL_hawindowsel(1);
-    retval = dm_write(tap, DM_HAWINDOWSEL, hartwindowsel);
-    if (retval != ERROR_OK) {
-        LOG_ERROR("Failed to set HAWINDOWSEL_hawindowsel");
-        return retval;
-    }
-
-    retval = dm_read(tap, DM_HAWINDOWSEL, &hartwindowsel);
-    if (retval != ERROR_OK) {
-        LOG_ERROR("Failed to read DM_HAWINDOWSEL");
-        return retval;
-    }
-    LOG_INFO("0x%x",retval);
-
-    return ERROR_FAIL;
-}
-
-static int myNewCPU_hawindow(struct target *target)
-{
-    LOG_INFO("in myNewCPU_hawindow");
-    struct jtag_tap *tap = target->tap;
-    if (!tap) {
-        LOG_ERROR("TAP not initialized!");
-        return ERROR_FAIL;
-    }
-
-    // 读取当前hawindow值
-    uint32_t hawindow;
-    int retval = dm_read(tap, DM_HAWINDOW, &hawindow);
-    if (retval != ERROR_OK) {
-        LOG_ERROR("Failed to read DM_HAWINDOW");
-        return retval;
-    }
-
-    // 
-    hawindow |= HAWINDOW_hawindow(0x3);
-    retval = dm_write(tap, DM_HAWINDOW, hawindow);
-    if (retval != ERROR_OK) {
-        LOG_ERROR("Failed to set DM_HAWINDOW");
-        return retval;
-    }
-
-    retval = dm_read(tap, DM_HAWINDOW, &hawindow);
-    if (retval != ERROR_OK) {
-        LOG_ERROR("Failed to read DM_HAWINDOW");
-        return retval;
-    }
-    LOG_INFO("0x%x",retval);
-    
-    return ERROR_FAIL;
 }
 
 static int myNewCPU_halt(struct target *target)
